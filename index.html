@@ -740,8 +740,8 @@
                 this.onBus = true;
                 this.currentBus = bus;
                 
-                // Disable physics
-                this.physicsBody.body.setMotionType(BABYLON.PhysicsMotionType.ANIMATED);
+                // Disable physics (use KINEMATIC for programmatic movement)
+                this.physicsBody.body.setMotionType(BABYLON.PhysicsMotionType.KINEMATIC);
                 
                 // Parent to bus
                 this.mesh.parent = bus.mesh;
@@ -855,10 +855,11 @@
                     const angle = Math.atan2(direction.x, direction.z);
                     this.mesh.rotation.y = angle;
                     
-                    // Update physics body position
+                    // Update physics body position with proper quaternion
+                    const rotationQuat = BABYLON.Quaternion.FromEulerAngles(0, angle, 0);
                     this.physicsBody.body.setTargetTransform(
                         this.mesh.position,
-                        this.mesh.rotationQuaternion || BABYLON.Quaternion.FromEulerAngles(0, angle, 0)
+                        rotationQuat
                     );
                 }
             }

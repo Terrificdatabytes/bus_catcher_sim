@@ -25,7 +25,7 @@ You play as a student who must navigate from home to the university within a 10-
 
 ### Bus System
 - **Multiple bus routes** following looping grid paths
-- **Automatic stops** at bus stops (8-12 seconds each)
+- **Automatic stops** at bus stops (10 seconds each)
 - **Board/Exit** buses with the E key
 - **Faster travel** than walking
 
