@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bus Catcher Simulator - 3D City Navigation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #000;
+        }
+        
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            display: block;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+            pointer-events: all;
+        }
+        
+        #loading .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #333;
+            border-top-color: #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            font-size: 18px;
+            line-height: 1.6;
+        }
+        
+        #timer {
+            font-size: 32px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+        
+        #timer.warning {
+            color: #ff9800;
+        }
+        
+        #timer.danger {
+            color: #f44336;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        
+        #actionPrompt {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform: translate(-50%, 50%);
+            color: white;
+            background: rgba(76, 175, 80, 0.9);
+            padding: 20px 40px;
+            border-radius: 8px;
+            font-size: 24px;
+            font-weight: bold;
+            display: none;
+            animation: bounce 0.5s ease-in-out infinite alternate;
+        }
+        
+        @keyframes bounce {
+            from { transform: translate(-50%, 50%); }
+            to { transform: translate(-50%, 40%); }
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            pointer-events: all;
+        }
+        
+        #gameOver h1 {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        
+        #gameOver.win h1 {
+            color: #4CAF50;
+        }
+        
+        #gameOver.lose h1 {
+            color: #f44336;
+        }
+        
+        #gameOver p {
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+        
+        #restartBtn {
+            padding: 15px 40px;
+            font-size: 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        #restartBtn:hover {
+            background: #45a049;
+        }
+        
+        .clickToStart {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px 40px;
+            border-radius: 8px;
+            pointer-events: all;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    
+    <div id="ui">
+        <div id="loading">
+            <div class="spinner"></div>
+            <div>Loading Bus Catcher Simulator...</div>
+            <div id="loadingProgress" style="margin-top: 10px; font-size: 16px;">Initializing...</div>
+        </div>
+        
+        <div id="hud" style="display: none;">
+            <div id="timer">10:00</div>
+            <div id="status">Status: On Foot</div>
+            <div id="objective">Objective: Reach the University!</div>
+        </div>
+        
+        <div id="instructions" style="display: none;">
+            <strong>Controls:</strong><br>
+            WASD - Move<br>
+            Mouse - Look Around<br>
+            Space - Jump<br>
+            E - Board/Exit Bus<br>
+            <br>
+            <strong>Objective:</strong><br>
+            Reach the University before time runs out!<br>
+            Use buses to travel faster.
+        </div>
+        
+        <div id="actionPrompt">Press E to Board Bus</div>
+        
+        <div id="gameOver">
+            <h1 id="gameOverTitle">Game Over</h1>
+            <p id="gameOverMessage">Time's up!</p>
+            <button id="restartBtn">Restart Game</button>
+        </div>
+    </div>
+    
+    <!-- Babylon.js CDN -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+    
+    <script>
+        // ================================================================================
+        // GAME CONSTANTS
+        // ================================================================================
+        const GAME_CONFIG = {
+            GRID_SIZE: 20,
+            BLOCK_SIZE: 40,
+            ROAD_WIDTH: 8,
+            GAME_DURATION: 600, // 10 minutes in seconds
+            PLAYER_SPEED: 8,
+            PLAYER_JUMP_FORCE: 12,
+            BUS_SPEED: 15,
+            BUS_STOP_DURATION: 10, // seconds
+            BOARDING_DISTANCE: 5,
+            WIN_DISTANCE: 10
+        };
+        
+        const GAME_STATE = {
+            LOADING: 'LOADING',
+            PLAYING: 'PLAYING',
+            WIN: 'WIN',
+            LOSE: 'LOSE'
+        };
+        
+        // ================================================================================
+        // UTILITY FUNCTIONS
+        // ================================================================================
+        
+        function randomRange(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+        
+        function randomColor() {
+            const colors = [
+                new BABYLON.Color3(0.8, 0.8, 0.8),
+                new BABYLON.Color3(0.6, 0.6, 0.7),
+                new BABYLON.Color3(0.9, 0.85, 0.7),
+                new BABYLON.Color3(0.7, 0.75, 0.8),
+                new BABYLON.Color3(0.85, 0.8, 0.75)
+            ];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+        
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // ================================================================================
+        // CITY GENERATOR CLASS
+        // ================================================================================
+        
+        class CityGenerator {
+            constructor(scene, gridSize, blockSize, roadWidth) {
+                this.scene = scene;
+                this.gridSize = gridSize;
+                this.blockSize = blockSize;
+                this.roadWidth = roadWidth;
+                this.busRoutes = [];
+                this.busStops = [];
+                this.universityPosition = null;
+                this.homePosition = null;
+            }
+            
+            async generate() {
+                this.createGround();
+                this.createBuildings();
+                this.createBusStops();
+                this.createLandmarks();
+                this.generateBusRoutes();
+                
+                return {
+                    busRoutes: this.busRoutes,
+                    busStops: this.busStops,
+                    universityPosition: this.universityPosition,
+                    homePosition: this.homePosition
+                };
+            }
+            
+            createGround() {
+                const totalSize = this.gridSize * this.blockSize;
+                const ground = BABYLON.MeshBuilder.CreateGround("ground", {
+                    width: totalSize,
+                    height: totalSize
+                }, this.scene);
+                
+                const groundMat = new BABYLON.StandardMaterial("groundMat", this.scene);
+                groundMat.diffuseColor = new BABYLON.Color3(0.3, 0.3, 0.3);
+                ground.material = groundMat;
+                
+                // Create static physics body for ground
+                const groundAggregate = new BABYLON.PhysicsAggregate(
+                    ground,
+                    BABYLON.PhysicsShapeType.BOX,
+                    { mass: 0, restitution: 0.2 },
+                    this.scene
+                );
+                
+                // Create roads
+                for (let i = 0; i <= this.gridSize; i++) {
+                    const pos = -totalSize / 2 + i * this.blockSize;
+                    
+                    // Horizontal road
+                    const roadH = BABYLON.MeshBuilder.CreateBox(`roadH_${i}`, {
+                        width: totalSize,
+                        height: 0.1,
+                        depth: this.roadWidth
+                    }, this.scene);
+                    roadH.position = new BABYLON.Vector3(0, 0.05, pos);
+                    
+                    const roadMatH = new BABYLON.StandardMaterial(`roadMatH_${i}`, this.scene);
+                    roadMatH.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+                    roadH.material = roadMatH;
+                    
+                    // Vertical road
+                    const roadV = BABYLON.MeshBuilder.CreateBox(`roadV_${i}`, {
+                        width: this.roadWidth,
+                        height: 0.1,
+                        depth: totalSize
+                    }, this.scene);
+                    roadV.position = new BABYLON.Vector3(pos, 0.05, 0);
+                    
+                    const roadMatV = new BABYLON.StandardMaterial(`roadMatV_${i}`, this.scene);
+                    roadMatV.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+                    roadV.material = roadMatV;
+                }
+            }
+            
+            createBuildings() {
+                const totalSize = this.gridSize * this.blockSize;
+                const halfSize = totalSize / 2;
+                
+                for (let x = 0; x < this.gridSize; x++) {
+                    for (let z = 0; z < this.gridSize; z++) {
+                        // Skip some blocks randomly for variety
+                        if (Math.random() < 0.3) continue;
+                        
+                        const blockX = -halfSize + x * this.blockSize + this.blockSize / 2;
+                        const blockZ = -halfSize + z * this.blockSize + this.blockSize / 2;
+                        
+                        const buildingWidth = randomRange(15, this.blockSize - this.roadWidth - 5);
+                        const buildingDepth = randomRange(15, this.blockSize - this.roadWidth - 5);
+                        const buildingHeight = randomRange(10, 80);
+                        
+                        const building = BABYLON.MeshBuilder.CreateBox(`building_${x}_${z}`, {
+                            width: buildingWidth,
+                            height: buildingHeight,
+                            depth: buildingDepth
+                        }, this.scene);
+                        
+                        building.position = new BABYLON.Vector3(
+                            blockX,
+                            buildingHeight / 2,
+                            blockZ
+                        );
+                        
+                        const buildingMat = new BABYLON.StandardMaterial(`buildingMat_${x}_${z}`, this.scene);
+                        buildingMat.diffuseColor = randomColor();
+                        building.material = buildingMat;
+                        
+                        // Static physics body for building
+                        new BABYLON.PhysicsAggregate(
+                            building,
+                            BABYLON.PhysicsShapeType.BOX,
+                            { mass: 0 },
+                            this.scene
+                        );
+                    }
+                }
+            }
+            
+            createBusStops() {
+                const totalSize = this.gridSize * this.blockSize;
+                const halfSize = totalSize / 2;
+                
+                // Create bus stops at intersections (every 3 blocks)
+                for (let x = 3; x < this.gridSize; x += 3) {
+                    for (let z = 3; z < this.gridSize; z += 3) {
+                        const posX = -halfSize + x * this.blockSize;
+                        const posZ = -halfSize + z * this.blockSize;
+                        
+                        const position = new BABYLON.Vector3(
+                            posX + this.roadWidth / 2,
+                            0,
+                            posZ + this.roadWidth / 2
+                        );
+                        
+                        this.createBusStopMesh(position);
+                        this.busStops.push(position);
+                    }
+                }
+            }
+            
+            createBusStopMesh(position) {
+                // Pole
+                const pole = BABYLON.MeshBuilder.CreateCylinder("busStopPole", {
+                    height: 4,
+                    diameter: 0.3
+                }, this.scene);
+                pole.position = position.clone();
+                pole.position.y = 2;
+                
+                const poleMat = new BABYLON.StandardMaterial("poleMat", this.scene);
+                poleMat.diffuseColor = new BABYLON.Color3(0.5, 0.5, 0.5);
+                pole.material = poleMat;
+                
+                // Sign
+                const sign = BABYLON.MeshBuilder.CreateSphere("busStopSign", {
+                    diameter: 1.5
+                }, this.scene);
+                sign.position = position.clone();
+                sign.position.y = 4;
+                
+                const signMat = new BABYLON.StandardMaterial("signMat", this.scene);
+                signMat.diffuseColor = new BABYLON.Color3(0.2, 0.5, 1);
+                signMat.emissiveColor = new BABYLON.Color3(0.1, 0.3, 0.6);
+                sign.material = signMat;
+                
+                // Physics for pole
+                new BABYLON.PhysicsAggregate(
+                    pole,
+                    BABYLON.PhysicsShapeType.CYLINDER,
+                    { mass: 0 },
+                    this.scene
+                );
+            }
+            
+            createLandmarks() {
+                const totalSize = this.gridSize * this.blockSize;
+                const halfSize = totalSize / 2;
+                
+                // Home position (start) - near one corner
+                this.homePosition = new BABYLON.Vector3(
+                    -halfSize + this.blockSize,
+                    2,
+                    -halfSize + this.blockSize
+                );
+                
+                const home = BABYLON.MeshBuilder.CreateBox("home", {
+                    width: 8,
+                    height: 6,
+                    depth: 8
+                }, this.scene);
+                home.position = this.homePosition.clone();
+                home.position.y = 3;
+                
+                const homeMat = new BABYLON.StandardMaterial("homeMat", this.scene);
+                homeMat.diffuseColor = new BABYLON.Color3(0.8, 0.9, 0.3);
+                homeMat.emissiveColor = new BABYLON.Color3(0.3, 0.4, 0.1);
+                home.material = homeMat;
+                
+                // University (goal) - opposite corner
+                this.universityPosition = new BABYLON.Vector3(
+                    halfSize - this.blockSize * 2,
+                    2,
+                    halfSize - this.blockSize * 2
+                );
+                
+                const university = BABYLON.MeshBuilder.CreateBox("university", {
+                    width: 20,
+                    height: 30,
+                    depth: 20
+                }, this.scene);
+                university.position = this.universityPosition.clone();
+                university.position.y = 15;
+                
+                const uniMat = new BABYLON.StandardMaterial("uniMat", this.scene);
+                uniMat.diffuseColor = new BABYLON.Color3(0.3, 0.8, 0.3);
+                uniMat.emissiveColor = new BABYLON.Color3(0.1, 0.4, 0.1);
+                university.material = uniMat;
+                
+                // Physics for landmarks
+                new BABYLON.PhysicsAggregate(home, BABYLON.PhysicsShapeType.BOX, { mass: 0 }, this.scene);
+                new BABYLON.PhysicsAggregate(university, BABYLON.PhysicsShapeType.BOX, { mass: 0 }, this.scene);
+            }
+            
+            generateBusRoutes() {
+                const totalSize = this.gridSize * this.blockSize;
+                const halfSize = totalSize / 2;
+                
+                // Route 1: Horizontal circuit
+                const route1 = [];
+                for (let x = 3; x < this.gridSize; x += 3) {
+                    route1.push(new BABYLON.Vector3(
+                        -halfSize + x * this.blockSize,
+                        0.5,
+                        -halfSize + 6 * this.blockSize
+                    ));
+                }
+                for (let x = this.gridSize - 3; x >= 3; x -= 3) {
+                    route1.push(new BABYLON.Vector3(
+                        -halfSize + x * this.blockSize,
+                        0.5,
+                        -halfSize + 15 * this.blockSize
+                    ));
+                }
+                this.busRoutes.push(route1);
+                
+                // Route 2: Vertical circuit
+                const route2 = [];
+                for (let z = 3; z < this.gridSize; z += 3) {
+                    route2.push(new BABYLON.Vector3(
+                        -halfSize + 9 * this.blockSize,
+                        0.5,
+                        -halfSize + z * this.blockSize
+                    ));
+                }
+                for (let z = this.gridSize - 3; z >= 3; z -= 3) {
+                    route2.push(new BABYLON.Vector3(
+                        -halfSize + 12 * this.blockSize,
+                        0.5,
+                        -halfSize + z * this.blockSize
+                    ));
+                }
+                this.busRoutes.push(route2);
+            }
+        }
+        
+        // ================================================================================
+        // PLAYER CLASS
+        // ================================================================================
+        
+        class Player {
+            constructor(scene, startPosition, camera) {
+                this.scene = scene;
+                this.camera = camera;
+                this.mesh = null;
+                this.physicsBody = null;
+                this.movementSpeed = GAME_CONFIG.PLAYER_SPEED;
+                this.jumpForce = GAME_CONFIG.PLAYER_JUMP_FORCE;
+                this.onBus = false;
+                this.currentBus = null;
+                this.isGrounded = false;
+                
+                this.inputMap = {
+                    w: false,
+                    a: false,
+                    s: false,
+                    d: false,
+                    space: false
+                };
+                
+                this.createPlayerMesh(startPosition);
+                this.setupCamera();
+                this.setupInput();
+            }
+            
+            createPlayerMesh(position) {
+                // Create capsule for player
+                this.mesh = BABYLON.MeshBuilder.CreateCapsule("player", {
+                    radius: 0.5,
+                    height: 2
+                }, this.scene);
+                this.mesh.position = position.clone();
+                
+                const playerMat = new BABYLON.StandardMaterial("playerMat", this.scene);
+                playerMat.diffuseColor = new BABYLON.Color3(1, 0.3, 0.3);
+                this.mesh.material = playerMat;
+                
+                // Create physics body
+                this.physicsBody = new BABYLON.PhysicsAggregate(
+                    this.mesh,
+                    BABYLON.PhysicsShapeType.CAPSULE,
+                    { mass: 1, restitution: 0.1, friction: 0.5 },
+                    this.scene
+                );
+                
+                // Lock rotation to prevent tumbling
+                this.physicsBody.body.setAngularDamping(1);
+                this.physicsBody.body.setLinearDamping(0.5);
+            }
+            
+            setupCamera() {
+                this.camera.parent = this.mesh;
+                this.camera.position = new BABYLON.Vector3(0, 3, -8);
+                this.camera.setTarget(new BABYLON.Vector3(0, 1, 0));
+            }
+            
+            setupInput() {
+                const canvas = this.scene.getEngine().getRenderingCanvas();
+                
+                // Keyboard input
+                this.scene.onKeyboardObservable.add((kbInfo) => {
+                    const key = kbInfo.event.key.toLowerCase();
+                    
+                    if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
+                        if (key in this.inputMap) {
+                            this.inputMap[key] = true;
+                        }
+                    } else if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYUP) {
+                        if (key in this.inputMap) {
+                            this.inputMap[key] = false;
+                        }
+                    }
+                });
+                
+                // Mouse look (pointer lock)
+                canvas.addEventListener("click", () => {
+                    canvas.requestPointerLock = canvas.requestPointerLock ||
+                                                 canvas.msRequestPointerLock ||
+                                                 canvas.mozRequestPointerLock ||
+                                                 canvas.webkitRequestPointerLock;
+                    if (canvas.requestPointerLock) {
+                        canvas.requestPointerLock();
+                    }
+                });
+                
+                // Mouse movement for camera rotation
+                this.scene.onPointerObservable.add((pointerInfo) => {
+                    if (pointerInfo.type === BABYLON.PointerEventTypes.POINTERMOVE) {
+                        if (document.pointerLockElement === canvas) {
+                            const movementX = pointerInfo.event.movementX || 0;
+                            const movementY = pointerInfo.event.movementY || 0;
+                            
+                            this.camera.alpha -= movementX * 0.003;
+                            this.camera.beta -= movementY * 0.003;
+                            
+                            // Clamp beta to prevent camera flipping
+                            this.camera.beta = Math.max(0.1, Math.min(Math.PI - 0.1, this.camera.beta));
+                        }
+                    }
+                });
+            }
+            
+            update(deltaTime) {
+                if (this.onBus) return;
+                
+                // Check if grounded
+                this.checkGrounded();
+                
+                // Movement
+                let moveX = 0;
+                let moveZ = 0;
+                
+                if (this.inputMap.w) moveZ += 1;
+                if (this.inputMap.s) moveZ -= 1;
+                if (this.inputMap.a) moveX -= 1;
+                if (this.inputMap.d) moveX += 1;
+                
+                if (moveX !== 0 || moveZ !== 0) {
+                    // Normalize diagonal movement
+                    const length = Math.sqrt(moveX * moveX + moveZ * moveZ);
+                    moveX /= length;
+                    moveZ /= length;
+                    
+                    // Calculate movement direction based on camera
+                    const forward = this.camera.getDirection(BABYLON.Axis.Z);
+                    const right = this.camera.getDirection(BABYLON.Axis.X);
+                    
+                    forward.y = 0;
+                    right.y = 0;
+                    forward.normalize();
+                    right.normalize();
+                    
+                    const moveDirection = forward.scale(moveZ).add(right.scale(moveX));
+                    
+                    // Apply force
+                    const force = moveDirection.scale(this.movementSpeed);
+                    this.physicsBody.body.applyForce(
+                        new BABYLON.Vector3(force.x, 0, force.z),
+                        this.mesh.position
+                    );
+                }
+                
+                // Jump
+                if (this.inputMap.space && this.isGrounded) {
+                    this.physicsBody.body.applyImpulse(
+                        new BABYLON.Vector3(0, this.jumpForce, 0),
+                        this.mesh.position
+                    );
+                    this.inputMap.space = false; // Prevent continuous jumping
+                }
+                
+                // Limit horizontal velocity
+                const velocity = this.physicsBody.body.getLinearVelocity();
+                const horizontalSpeed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+                if (horizontalSpeed > this.movementSpeed * 1.5) {
+                    const scale = (this.movementSpeed * 1.5) / horizontalSpeed;
+                    this.physicsBody.body.setLinearVelocity(new BABYLON.Vector3(
+                        velocity.x * scale,
+                        velocity.y,
+                        velocity.z * scale
+                    ));
+                }
+            }
+            
+            checkGrounded() {
+                // Raycast down to check if on ground
+                const ray = new BABYLON.Ray(
+                    this.mesh.position,
+                    new BABYLON.Vector3(0, -1, 0),
+                    1.2
+                );
+                
+                const hit = this.scene.pickWithRay(ray, (mesh) => {
+                    return mesh !== this.mesh && mesh.name !== "player";
+                });
+                
+                this.isGrounded = hit && hit.hit;
+            }
+            
+            boardBus(bus) {
+                this.onBus = true;
+                this.currentBus = bus;
+                
+                // Disable physics
+                this.physicsBody.body.setMotionType(BABYLON.PhysicsMotionType.ANIMATED);
+                
+                // Parent to bus
+                this.mesh.parent = bus.mesh;
+                this.mesh.position = new BABYLON.Vector3(0, 2, 0);
+                
+                // Update camera
+                this.camera.parent = this.mesh;
+            }
+            
+            exitBus() {
+                if (!this.onBus) return;
+                
+                const exitPosition = this.currentBus.mesh.position.clone();
+                exitPosition.x += 3;
+                exitPosition.y = 2;
+                
+                // Unparent from bus
+                this.mesh.parent = null;
+                this.mesh.position = exitPosition;
+                
+                // Re-enable physics
+                this.physicsBody.body.setMotionType(BABYLON.PhysicsMotionType.DYNAMIC);
+                this.physicsBody.body.setLinearVelocity(BABYLON.Vector3.Zero());
+                
+                this.onBus = false;
+                this.currentBus = null;
+                
+                // Reset camera
+                this.camera.parent = this.mesh;
+                this.camera.position = new BABYLON.Vector3(0, 3, -8);
+            }
+            
+            getPosition() {
+                return this.mesh.getAbsolutePosition();
+            }
+            
+            checkUniversityProximity(universityPosition) {
+                return BABYLON.Vector3.Distance(this.getPosition(), universityPosition);
+            }
+        }
+        
+        // ================================================================================
+        // BUS CLASS
+        // ================================================================================
+        
+        class Bus {
+            constructor(scene, route, color, id) {
+                this.scene = scene;
+                this.route = route;
+                this.id = id;
+                this.mesh = null;
+                this.physicsBody = null;
+                this.currentWaypointIndex = 0;
+                this.stopped = false;
+                this.stopTimer = 0;
+                this.speed = GAME_CONFIG.BUS_SPEED;
+                this.stopDuration = GAME_CONFIG.BUS_STOP_DURATION;
+                
+                this.createBusMesh(route[0], color);
+            }
+            
+            createBusMesh(startPosition, color) {
+                // Create simple bus mesh
+                this.mesh = BABYLON.MeshBuilder.CreateBox(`bus_${this.id}`, {
+                    width: 3,
+                    height: 3,
+                    depth: 6
+                }, this.scene);
+                this.mesh.position = startPosition.clone();
+                
+                const busMat = new BABYLON.StandardMaterial(`busMat_${this.id}`, this.scene);
+                busMat.diffuseColor = color;
+                busMat.emissiveColor = color.scale(0.3);
+                this.mesh.material = busMat;
+                
+                // Create physics body (kinematic)
+                this.physicsBody = new BABYLON.PhysicsAggregate(
+                    this.mesh,
+                    BABYLON.PhysicsShapeType.BOX,
+                    { mass: 0 },
+                    this.scene
+                );
+                this.physicsBody.body.setMotionType(BABYLON.PhysicsMotionType.ANIMATED);
+            }
+            
+            update(deltaTime) {
+                if (this.stopped) {
+                    this.stopTimer -= deltaTime;
+                    if (this.stopTimer <= 0) {
+                        this.stopped = false;
+                        this.currentWaypointIndex = (this.currentWaypointIndex + 1) % this.route.length;
+                    }
+                    return;
+                }
+                
+                const targetWaypoint = this.route[this.currentWaypointIndex];
+                const direction = targetWaypoint.subtract(this.mesh.position);
+                const distance = direction.length();
+                
+                if (distance < 2) {
+                    // Reached waypoint - stop at bus stop
+                    this.stopped = true;
+                    this.stopTimer = this.stopDuration;
+                } else {
+                    // Move towards waypoint
+                    direction.normalize();
+                    const movement = direction.scale(this.speed * deltaTime);
+                    this.mesh.position.addInPlace(movement);
+                    
+                    // Rotate to face direction
+                    const angle = Math.atan2(direction.x, direction.z);
+                    this.mesh.rotation.y = angle;
+                    
+                    // Update physics body position
+                    this.physicsBody.body.setTargetTransform(
+                        this.mesh.position,
+                        this.mesh.rotationQuaternion || BABYLON.Quaternion.FromEulerAngles(0, angle, 0)
+                    );
+                }
+            }
+            
+            isStopped() {
+                return this.stopped;
+            }
+            
+            getBoardingZone() {
+                return {
+                    position: this.mesh.position.clone(),
+                    radius: GAME_CONFIG.BOARDING_DISTANCE
+                };
+            }
+        }
+        
+        // ================================================================================
+        // GAME MANAGER CLASS
+        // ================================================================================
+        
+        class GameManager {
+            constructor() {
+                this.canvas = null;
+                this.engine = null;
+                this.scene = null;
+                this.camera = null;
+                this.player = null;
+                this.buses = [];
+                this.gameState = GAME_STATE.LOADING;
+                this.timeRemaining = GAME_CONFIG.GAME_DURATION;
+                this.universityPosition = null;
+                this.cityData = null;
+                this.nearbyBus = null;
+            }
+            
+            async init() {
+                // Get canvas
+                this.canvas = document.getElementById("renderCanvas");
+                
+                // Create engine
+                this.engine = new BABYLON.Engine(this.canvas, true, {
+                    preserveDrawingBuffer: true,
+                    stencil: true
+                });
+                
+                // Update loading progress
+                this.updateLoadingProgress("Initializing Physics...");
+                
+                // Initialize Havok Physics
+                const havokInstance = await HavokPhysics();
+                
+                // Create scene
+                this.scene = new BABYLON.Scene(this.engine);
+                
+                // Enable physics with Havok
+                const havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
+                this.scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), havokPlugin);
+                
+                // Create camera
+                this.camera = new BABYLON.ArcRotateCamera(
+                    "camera",
+                    0,
+                    Math.PI / 3,
+                    10,
+                    BABYLON.Vector3.Zero(),
+                    this.scene
+                );
+                this.camera.attachControl(this.canvas, true);
+                this.camera.lowerRadiusLimit = 5;
+                this.camera.upperRadiusLimit = 15;
+                
+                // Create lights
+                const hemiLight = new BABYLON.HemisphericLight(
+                    "hemiLight",
+                    new BABYLON.Vector3(0, 1, 0),
+                    this.scene
+                );
+                hemiLight.intensity = 0.7;
+                
+                const dirLight = new BABYLON.DirectionalLight(
+                    "dirLight",
+                    new BABYLON.Vector3(-1, -2, -1),
+                    this.scene
+                );
+                dirLight.intensity = 0.5;
+                
+                // Generate city
+                this.updateLoadingProgress("Generating City...");
+                const cityGen = new CityGenerator(
+                    this.scene,
+                    GAME_CONFIG.GRID_SIZE,
+                    GAME_CONFIG.BLOCK_SIZE,
+                    GAME_CONFIG.ROAD_WIDTH
+                );
+                this.cityData = await cityGen.generate();
+                this.universityPosition = this.cityData.universityPosition;
+                
+                // Create player
+                this.updateLoadingProgress("Creating Player...");
+                this.player = new Player(this.scene, this.cityData.homePosition, this.camera);
+                
+                // Create buses
+                this.updateLoadingProgress("Creating Buses...");
+                const busColors = [
+                    new BABYLON.Color3(1, 0.5, 0),
+                    new BABYLON.Color3(0.3, 0.7, 1)
+                ];
+                
+                for (let i = 0; i < this.cityData.busRoutes.length; i++) {
+                    const bus = new Bus(
+                        this.scene,
+                        this.cityData.busRoutes[i],
+                        busColors[i % busColors.length],
+                        i
+                    );
+                    this.buses.push(bus);
+                }
+                
+                // Setup game loop
+                this.setupGameLoop();
+                
+                // Setup UI
+                this.setupUI();
+                
+                // Load audio
+                this.loadAudio();
+                
+                // Start game
+                this.startGame();
+            }
+            
+            setupGameLoop() {
+                this.scene.onBeforeRenderObservable.add(() => {
+                    if (this.gameState === GAME_STATE.PLAYING) {
+                        const deltaTime = this.engine.getDeltaTime() / 1000;
+                        
+                        // Update player
+                        this.player.update(deltaTime);
+                        
+                        // Update buses
+                        this.buses.forEach(bus => bus.update(deltaTime));
+                        
+                        // Update timer
+                        this.updateTimer(deltaTime);
+                        
+                        // Check boarding
+                        this.checkBoardingPrompt();
+                        
+                        // Check win condition
+                        this.checkWinCondition();
+                    }
+                });
+                
+                // Render loop
+                this.engine.runRenderLoop(() => {
+                    this.scene.render();
+                });
+                
+                // Resize handler
+                window.addEventListener("resize", () => {
+                    this.engine.resize();
+                });
+            }
+            
+            setupUI() {
+                // Handle E key for boarding
+                this.scene.onKeyboardObservable.add((kbInfo) => {
+                    if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
+                        if (kbInfo.event.key.toLowerCase() === 'e') {
+                            this.handleBoardingAction();
+                        }
+                    }
+                });
+                
+                // Restart button
+                document.getElementById("restartBtn").addEventListener("click", () => {
+                    window.location.reload();
+                });
+            }
+            
+            loadAudio() {
+                // Optional: Load background music
+                // Using a public domain city ambience sound
+                try {
+                    const music = new BABYLON.Sound(
+                        "cityMusic",
+                        "https://cdn.freesound.org/previews/380/380472_6561150-lq.mp3",
+                        this.scene,
+                        null,
+                        {
+                            loop: true,
+                            autoplay: true,
+                            volume: 0.3
+                        }
+                    );
+                } catch (e) {
+                    console.log("Audio loading failed (optional feature):", e);
+                }
+            }
+            
+            startGame() {
+                this.gameState = GAME_STATE.PLAYING;
+                
+                // Hide loading screen
+                document.getElementById("loading").style.display = "none";
+                
+                // Show HUD and instructions
+                document.getElementById("hud").style.display = "block";
+                document.getElementById("instructions").style.display = "block";
+                
+                // Update initial UI
+                this.updateTimerDisplay();
+                this.updateStatusDisplay();
+            }
+            
+            updateLoadingProgress(message) {
+                document.getElementById("loadingProgress").textContent = message;
+            }
+            
+            updateTimer(deltaTime) {
+                this.timeRemaining -= deltaTime;
+                
+                if (this.timeRemaining <= 0) {
+                    this.timeRemaining = 0;
+                    this.gameOver(false);
+                }
+                
+                this.updateTimerDisplay();
+            }
+            
+            updateTimerDisplay() {
+                const timerEl = document.getElementById("timer");
+                timerEl.textContent = formatTime(this.timeRemaining);
+                
+                // Color coding
+                timerEl.className = '';
+                if (this.timeRemaining < 60) {
+                    timerEl.className = 'danger';
+                } else if (this.timeRemaining < 180) {
+                    timerEl.className = 'warning';
+                }
+            }
+            
+            updateStatusDisplay() {
+                const statusEl = document.getElementById("status");
+                statusEl.textContent = `Status: ${this.player.onBus ? 'On Bus' : 'On Foot'}`;
+            }
+            
+            checkBoardingPrompt() {
+                const promptEl = document.getElementById("actionPrompt");
+                this.nearbyBus = null;
+                
+                if (this.player.onBus) {
+                    promptEl.textContent = "Press E to Exit Bus";
+                    promptEl.style.display = "block";
+                    return;
+                }
+                
+                // Check if near any stopped bus
+                for (const bus of this.buses) {
+                    if (bus.isStopped()) {
+                        const zone = bus.getBoardingZone();
+                        const distance = BABYLON.Vector3.Distance(
+                            this.player.getPosition(),
+                            zone.position
+                        );
+                        
+                        if (distance < zone.radius) {
+                            this.nearbyBus = bus;
+                            promptEl.textContent = "Press E to Board Bus";
+                            promptEl.style.display = "block";
+                            return;
+                        }
+                    }
+                }
+                
+                promptEl.style.display = "none";
+            }
+            
+            handleBoardingAction() {
+                if (this.player.onBus) {
+                    this.player.exitBus();
+                } else if (this.nearbyBus) {
+                    this.player.boardBus(this.nearbyBus);
+                }
+                this.updateStatusDisplay();
+            }
+            
+            checkWinCondition() {
+                const distance = this.player.checkUniversityProximity(this.universityPosition);
+                
+                if (distance < GAME_CONFIG.WIN_DISTANCE) {
+                    this.gameOver(true);
+                }
+            }
+            
+            gameOver(win) {
+                this.gameState = win ? GAME_STATE.WIN : GAME_STATE.LOSE;
+                
+                const gameOverEl = document.getElementById("gameOver");
+                const titleEl = document.getElementById("gameOverTitle");
+                const messageEl = document.getElementById("gameOverMessage");
+                
+                gameOverEl.className = win ? 'win' : 'lose';
+                
+                if (win) {
+                    titleEl.textContent = "You Win!";
+                    messageEl.textContent = `You reached the university with ${formatTime(this.timeRemaining)} remaining!`;
+                } else {
+                    titleEl.textContent = "Time's Up!";
+                    messageEl.textContent = "You didn't make it to the university in time.";
+                }
+                
+                gameOverEl.style.display = "flex";
+            }
+        }
+        
+        // ================================================================================
+        // INITIALIZATION
+        // ================================================================================
+        
+        window.addEventListener("DOMContentLoaded", async () => {
+            try {
+                const gameManager = new GameManager();
+                await gameManager.init();
+            } catch (error) {
+                console.error("Game initialization failed:", error);
+                document.getElementById("loadingProgress").textContent = 
+                    "Error loading game. Please refresh the page.";
+            }
+        });
+    </script>
+</body>
+</html>
