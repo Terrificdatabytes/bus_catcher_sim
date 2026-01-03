@@ -817,14 +817,14 @@
                 busMat.emissiveColor = color.scale(0.3);
                 this.mesh.material = busMat;
                 
-                // Create physics body (kinematic)
+                // Create physics body (kinematic for scripted movement)
                 this.physicsBody = new BABYLON.PhysicsAggregate(
                     this.mesh,
                     BABYLON.PhysicsShapeType.BOX,
                     { mass: 0 },
                     this.scene
                 );
-                this.physicsBody.body.setMotionType(BABYLON.PhysicsMotionType.ANIMATED);
+                this.physicsBody.body.setMotionType(BABYLON.PhysicsMotionType.KINEMATIC);
             }
             
             update(deltaTime) {
@@ -1042,21 +1042,30 @@
             
             loadAudio() {
                 // Optional: Load background music
-                // Using a public domain city ambience sound
+                // Note: Audio is optional and failures are handled gracefully
                 try {
                     const music = new BABYLON.Sound(
                         "cityMusic",
                         "https://cdn.freesound.org/previews/380/380472_6561150-lq.mp3",
                         this.scene,
-                        null,
+                        () => {
+                            // Audio loaded successfully (optional)
+                            console.log("Background music loaded");
+                        },
                         {
                             loop: true,
-                            autoplay: true,
+                            autoplay: false, // Don't autoplay to avoid CORS/loading issues
                             volume: 0.3
                         }
                     );
+                    
+                    // Attempt to play (user interaction may be required)
+                    music.play().catch(err => {
+                        console.log("Audio playback not available (user interaction may be required)");
+                    });
                 } catch (e) {
-                    console.log("Audio loading failed (optional feature):", e);
+                    // Audio is completely optional - fail silently
+                    console.log("Audio not available (optional feature)");
                 }
             }
             
